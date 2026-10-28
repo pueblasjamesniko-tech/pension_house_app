@@ -12,6 +12,8 @@ class AppColors {
   static const muted = Color(0xFF6C7A76);
   static const gold = Color(0xFFE0A43A);
   static const goldSoft = Color(0xFFFBF0D6);
+  static const sand = Color(0xFFEFEBDD);
+  static const sandDeep = Color(0xFFE9E3D2);
 
   static const success = Color(0xFF1D6B3A);
   static const successSoft = Color(0xFFDDF1E3);
@@ -20,13 +22,35 @@ class AppColors {
 }
 
 class AppRadius {
-  static const card = 16.0;
+  static const card = 18.0;
   static const field = 12.0;
 }
 
+class AppShadow {
+  static const soft = [
+    BoxShadow(color: Color(0x0F0F3D3A), blurRadius: 12, offset: Offset(0, 4))
+  ];
+  static const lift = [
+    BoxShadow(color: Color(0x1A0F3D3A), blurRadius: 24, offset: Offset(0, 10))
+  ];
+}
+
+/// Headings (Fraunces).
 TextStyle serif(double size, {Color color = AppColors.green}) =>
     GoogleFonts.fraunces(
         fontSize: size, color: color, fontWeight: FontWeight.w600, height: 1.2);
+
+/// Codes and numbers (booking code, GCash number).
+TextStyle mono(double size, {Color color = AppColors.ink}) =>
+    GoogleFonts.ibmPlexMono(
+        fontSize: size, color: color, fontWeight: FontWeight.w600);
+
+/// Small ALL-CAPS label above a value.
+TextStyle overline({Color color = AppColors.muted}) => TextStyle(
+    fontSize: 10.5,
+    letterSpacing: .9,
+    fontWeight: FontWeight.w600,
+    color: color);
 
 ThemeData buildTheme() {
   OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
@@ -47,6 +71,10 @@ ThemeData buildTheme() {
     scaffoldBackgroundColor: AppColors.cream,
     textTheme: base,
     splashFactory: InkRipple.splashFactory,
+    progressIndicatorTheme:
+        const ProgressIndicatorThemeData(color: AppColors.green),
+    textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: AppColors.green, selectionHandleColor: AppColors.green),
     appBarTheme: AppBarTheme(
       backgroundColor: AppColors.cream,
       surfaceTintColor: Colors.transparent,
@@ -58,13 +86,13 @@ ThemeData buildTheme() {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       hintStyle: const TextStyle(color: AppColors.muted, fontSize: 13),
       border: border(AppColors.line),
       enabledBorder: border(AppColors.line),
-      focusedBorder: border(AppColors.green, 1.5),
+      focusedBorder: border(AppColors.green, 1.6),
       errorBorder: border(AppColors.coral),
-      focusedErrorBorder: border(AppColors.coral, 1.5),
+      focusedErrorBorder: border(AppColors.coral, 1.6),
       errorStyle: const TextStyle(fontSize: 11.5, color: AppColors.danger),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -73,10 +101,11 @@ ThemeData buildTheme() {
         foregroundColor: Colors.white,
         disabledBackgroundColor: AppColors.line,
         disabledForegroundColor: AppColors.muted,
+        elevation: 0,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.field)),
         textStyle:
-            GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+            GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -86,7 +115,7 @@ ThemeData buildTheme() {
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.field)),
         textStyle:
-            GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+            GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w600),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -109,17 +138,27 @@ ThemeData buildTheme() {
     dialogTheme: DialogThemeData(
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
-      height: 66,
-      indicatorColor: AppColors.green,
-      labelTextStyle: WidgetStatePropertyAll(GoogleFonts.poppins(fontSize: 11)),
+      elevation: 0,
+      height: 68,
+      indicatorColor: AppColors.greenSoft,
+      indicatorShape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      labelTextStyle: WidgetStateProperty.resolveWith((s) {
+        final on = s.contains(WidgetState.selected);
+        return GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+            color: on ? AppColors.green : AppColors.muted);
+      }),
       iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
+          size: 24,
           color: s.contains(WidgetState.selected)
-              ? Colors.white
+              ? AppColors.green
               : AppColors.muted)),
     ),
     dividerTheme: const DividerThemeData(color: AppColors.line, space: 1),

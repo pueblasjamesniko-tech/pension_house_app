@@ -1,10 +1,3 @@
-/// App-wide settings.
-///
-/// The API runs on the OTHER laptop, so the phone must use that laptop's
-/// IP address on the same Wi-Fi, e.g. http://192.168.1.20:5231/api
-///
-/// Change [_defaultUrl] below, OR pass it when running:
-///   flutter run --dart-define=API_URL=http://192.168.1.20:5231/api
 class Config {
   // Android emulator on the SAME machine as the API -> http://10.0.2.2:5231/api
   // Real phone -> http://<API-laptop-IP>:5231/api   (port from launchSettings.json)

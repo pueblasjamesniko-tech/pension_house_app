@@ -5,7 +5,15 @@ import '../models/review.dart';
 import '../services/api_service.dart';
 import 'common.dart';
 
-/// Play-Store-style rating summary + latest reviews for one room.
+String ratingWord(double avg) {
+  if (avg >= 4.5) return 'Excellent';
+  if (avg >= 3.5) return 'Very good';
+  if (avg >= 2.5) return 'Good';
+  if (avg >= 1.5) return 'Fair';
+  return 'Poor';
+}
+
+/// Rating summary + latest reviews for one room.
 /// Loads itself; if it fails it quietly hides (reviews are a bonus).
 class RoomReviewsSection extends StatefulWidget {
   final int roomId;
@@ -17,6 +25,35 @@ class RoomReviewsSection extends StatefulWidget {
 class _RoomReviewsSectionState extends State<RoomReviewsSection> {
   late final Future<RoomReviews> _f =
       ApiService.instance.roomReviews(widget.roomId);
+
+  void _showAll(RoomReviews d) => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.cream,
+        shape: sheetShape(),
+        builder: (_) => SizedBox(
+          height: MediaQuery.of(context).size.height * .85,
+          child: SafeArea(
+            child: Column(children: [
+              const SizedBox(height: 12),
+              Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: AppColors.line,
+                      borderRadius: BorderRadius.circular(4))),
+              const SizedBox(height: 14),
+              Text('All reviews', style: serif(22)),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    children: [for (final r in d.reviews) _ReviewTile(r)]),
+              ),
+            ]),
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) => FutureBuilder<RoomReviews>(
@@ -35,20 +72,35 @@ class _RoomReviewsSectionState extends State<RoomReviewsSection> {
                                 strokeWidth: 2, color: AppColors.green))));
           }
           final d = s.data!;
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const SizedBox(height: 22),
-            Text('Guest reviews', style: serif(19)),
-            const SizedBox(height: 10),
-            if (d.summary.total == 0)
-              const Panel(
-                  child: Text('No reviews yet. Be the first to rate this room!',
-                      style: TextStyle(fontSize: 12.5, color: AppColors.muted)))
-            else ...[
-              _Summary(d.summary),
-              const SizedBox(height: 10),
-              for (final r in d.reviews.take(5)) _ReviewTile(r),
-            ],
-          ]);
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                Row(children: [
+                  Expanded(child: Text('Guest reviews', style: serif(19))),
+                  if (d.reviews.length > 3)
+                    TextButton(
+                        onPressed: () => _showAll(d),
+                        child: Text('See all ${d.reviews.length}')),
+                ]),
+                const SizedBox(height: 8),
+                if (d.summary.total == 0)
+                  const Panel(
+                      child: Row(children: [
+                    Icon(Icons.star_outline_rounded, color: AppColors.gold),
+                    SizedBox(width: 10),
+                    Expanded(
+                        child: Text(
+                            'No reviews yet. Guests can rate this room after their stay.',
+                            style: TextStyle(
+                                fontSize: 12.5, color: AppColors.muted))),
+                  ]))
+                else ...[
+                  _Summary(d.summary),
+                  const SizedBox(height: 12),
+                  for (final r in d.reviews.take(3)) _ReviewTile(r),
+                ],
+              ]);
         },
       );
 }
@@ -62,34 +114,51 @@ class _Summary extends StatelessWidget {
     final max = s.counts.fold<int>(1, (a, b) => b > a ? b : a);
     return Panel(
       child: Row(children: [
-        Column(children: [
-          Text(s.average.toStringAsFixed(1), style: serif(34)),
-          StarRating(s.average, size: 15),
-          const SizedBox(height: 4),
+        Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(s.average.toStringAsFixed(1), style: serif(36)),
+          const SizedBox(height: 2),
+          StarRating(s.average, size: 16),
+          const SizedBox(height: 6),
+          Text(ratingWord(s.average),
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.green)),
           Text('${s.total} review${s.total == 1 ? '' : 's'}',
               style: const TextStyle(fontSize: 11, color: AppColors.muted)),
         ]),
-        const SizedBox(width: 20),
+        const SizedBox(width: 22),
         Expanded(
           child: Column(children: [
             for (var star = 5; star >= 1; star--)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2.5),
+                padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(children: [
-                  Text('$star',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.muted)),
+                  SizedBox(
+                    width: 10,
+                    child: Text('$star',
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.muted)),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: s.counts[star - 1] / max,
-                        minHeight: 6,
+                        minHeight: 7,
                         backgroundColor: AppColors.greenSoft,
                         color: AppColors.gold,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 18,
+                    child: Text('${s.counts[star - 1]}',
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.muted)),
                   ),
                 ]),
               ),
@@ -105,36 +174,42 @@ class _ReviewTile extends StatelessWidget {
   const _ReviewTile(this.r);
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 8),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
         child: Panel(
           padding: const EdgeInsets.all(14),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               CircleAvatar(
-                  radius: 15,
+                  radius: 16,
                   backgroundColor: AppColors.green,
                   child: Text(initials(r.guestName),
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600))),
               const SizedBox(width: 10),
               Expanded(
-                  child: Text(r.guestName,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600))),
-              Text(fmtShort(r.createdAt),
-                  style:
-                      const TextStyle(fontSize: 11, color: AppColors.muted)),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.guestName,
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text(fmtShort(r.createdAt),
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.muted)),
+                    ]),
+              ),
+              Pill.good('Verified stay'),
             ]),
-            const SizedBox(height: 8),
-            StarRating(r.rating.toDouble(), size: 15),
+            const SizedBox(height: 10),
+            StarRating(r.rating.toDouble(), size: 16),
             if (r.comment != null) ...[
               const SizedBox(height: 6),
               Text(r.comment!,
-                  style: const TextStyle(fontSize: 12.5, height: 1.45)),
+                  style: const TextStyle(fontSize: 12.5, height: 1.5)),
             ],
           ]),
         ),

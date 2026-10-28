@@ -43,13 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                      child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                              color: AppColors.line,
-                              borderRadius: BorderRadius.circular(4)))),
+                  const Handle(),
                   const SizedBox(height: 16),
                   Text('Contact & payment', style: serif(22)),
                   const SizedBox(height: 12),
@@ -93,10 +87,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
 
-  Widget _stat(String n, String label) => Expanded(
+  // ---- pieces ----------------------------------------------------------
+
+  Widget _header(String name, String email) => Container(
+        width: double.infinity,
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.fromLTRB(20, 26, 20, 22),
+        decoration: BoxDecoration(
+            color: AppColors.green,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: AppShadow.lift),
+        child: Stack(children: [
+          Positioned(
+            right: -60,
+            top: -80,
+            child: Container(
+                width: 170,
+                height: 170,
+                decoration: const BoxDecoration(
+                    color: Color(0x33E05A40), shape: BoxShape.circle)),
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: Column(children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                    color: Colors.white, shape: BoxShape.circle),
+                child: CircleAvatar(
+                  radius: 38,
+                  backgroundColor: AppColors.coral,
+                  child: Text(initials(name),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 27,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(name,
+                  textAlign: TextAlign.center,
+                  style: serif(24, color: Colors.white)),
+              const SizedBox(height: 3),
+              Text(email,
+                  textAlign: TextAlign.center,
+                  style:
+                      const TextStyle(fontSize: 12.5, color: Colors.white70)),
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                    color: const Color(0x22FFFFFF),
+                    borderRadius: BorderRadius.circular(20)),
+                child: const Text('Guest account',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
+        ]),
+      );
+
+  Widget _stat(IconData icon, String n, String label) => Expanded(
         child: Panel(
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Column(children: [
+            Icon(icon, size: 18, color: AppColors.coral),
+            const SizedBox(height: 6),
             Text(n, style: serif(24)),
             const SizedBox(height: 2),
             Text(label,
@@ -107,79 +167,102 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _tile(IconData icon, String label, VoidCallback onTap,
           {bool danger = false}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Material(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: AppColors.line)),
-          child: ListTile(
-            onTap: onTap,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            leading: Icon(icon,
-                size: 21, color: danger ? AppColors.danger : AppColors.green),
-            title: Text(label,
-                style: TextStyle(
-                    fontSize: 13.5,
-                    color: danger ? AppColors.danger : AppColors.ink)),
-            trailing: danger
-                ? null
-                : const Icon(Icons.chevron_right, color: AppColors.muted),
-          ),
+      ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        leading: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+              color: danger ? AppColors.dangerSoft : AppColors.greenSoft,
+              borderRadius: BorderRadius.circular(11)),
+          child: Icon(icon,
+              size: 20, color: danger ? AppColors.danger : AppColors.green),
         ),
+        title: Text(label,
+            style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+                color: danger ? AppColors.danger : AppColors.ink)),
+        trailing: danger
+            ? null
+            : const Icon(Icons.chevron_right, color: AppColors.muted),
+      );
+
+  /// Rounded white block holding several tiles separated by lines.
+  Widget _group(List<Widget> tiles) => Material(
+        color: Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            side: const BorderSide(color: AppColors.line)),
+        child: Column(children: [
+          for (var i = 0; i < tiles.length; i++) ...[
+            if (i > 0) const Divider(indent: 66),
+            tiles[i],
+          ],
+        ]),
       );
 
   @override
   Widget build(BuildContext context) {
     final user = ApiService.instance.user!;
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      const SizedBox(height: 8),
-      Center(
-        child: CircleAvatar(
-          radius: 42,
-          backgroundColor: AppColors.green,
-          child: Text(initials(user.fullName),
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600)),
-        ),
-      ),
-      const SizedBox(height: 12),
-      Text(user.fullName, textAlign: TextAlign.center, style: serif(24)),
-      const SizedBox(height: 2),
-      Text(user.email,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12.5, color: AppColors.muted)),
-      const SizedBox(height: 18),
-      FutureBuilder<List<Booking>>(
-        future: _f,
-        builder: (_, s) {
-          final b = s.data ?? const <Booking>[];
-          return ListenableBuilder(
-            listenable: SavedRooms.instance,
-            builder: (_, __) => Row(children: [
-              _stat('${b.where((x) => !x.isPast).length}', 'Upcoming'),
-              const SizedBox(width: 8),
-              _stat('${b.where((x) => x.completed).length}', 'Past stays'),
-              const SizedBox(width: 8),
-              _stat('${SavedRooms.instance.ids.length}', 'Saved'),
-            ]),
-          );
-        },
-      ),
-      const SizedBox(height: 18),
-      _tile(Icons.calendar_today_outlined, 'My bookings',
-          () => homeTab.value = tabBookings),
-      _tile(Icons.star_outline_rounded, 'My reviews', () {
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const MyReviewsScreen()));
-      }),
-      _tile(Icons.favorite_border, 'Saved rooms',
-          () => homeTab.value = tabSaved),
-      _tile(Icons.info_outline, 'Contact & payment details', _about),
-      _tile(Icons.logout, 'Sign out', _signOut, danger: true),
-    ]);
+    return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        children: [
+          _header(user.fullName, user.email),
+          const SizedBox(height: 14),
+          FutureBuilder<List<Booking>>(
+            future: _f,
+            builder: (_, s) {
+              final b = s.data ?? const <Booking>[];
+              return ListenableBuilder(
+                listenable: SavedRooms.instance,
+                builder: (_, __) => Row(children: [
+                  _stat(Icons.event_available_outlined,
+                      '${b.where((x) => !x.isPast).length}', 'Upcoming'),
+                  const SizedBox(width: 8),
+                  _stat(Icons.task_alt_rounded,
+                      '${b.where((x) => x.completed).length}', 'Past stays'),
+                  const SizedBox(width: 8),
+                  _stat(Icons.favorite_border_rounded,
+                      '${SavedRooms.instance.ids.length}', 'Saved'),
+                ]),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text('MY ACTIVITY', style: overline()),
+          ),
+          _group([
+            _tile(Icons.calendar_today_outlined, 'My bookings',
+                () => homeTab.value = tabBookings),
+            _tile(Icons.star_outline_rounded, 'My reviews', () {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const MyReviewsScreen()));
+            }),
+            _tile(Icons.favorite_border, 'Saved rooms',
+                () => homeTab.value = tabSaved),
+          ]),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text('PENSION HOUSE', style: overline()),
+          ),
+          _group([
+            _tile(Icons.info_outline, 'Contact & payment details', _about),
+          ]),
+          const SizedBox(height: 20),
+          _group([
+            _tile(Icons.logout, 'Sign out', _signOut, danger: true),
+          ]),
+          const SizedBox(height: 22),
+          const Center(
+            child: Text('Norberto Pension House',
+                style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+          ),
+        ]);
   }
 }

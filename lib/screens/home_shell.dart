@@ -42,6 +42,29 @@ class _HomeShellState extends State<HomeShell> {
 
   void _rebuild() => setState(() {});
 
+  // Colours / icons for the "Booking updates" list.
+  IconData _icon(Booking b) => b.cancelled || b.paymentRejected
+      ? Icons.cancel_outlined
+      : b.completed
+          ? Icons.task_alt_rounded
+          : b.paymentApproved || b.checkedIn
+              ? Icons.check_circle_outline_rounded
+              : Icons.schedule_rounded;
+
+  Color _fg(Booking b) => switch (b.tone) {
+        BookingTone.good || BookingTone.active => AppColors.success,
+        BookingTone.waiting => const Color(0xFF8A5B00),
+        BookingTone.bad => AppColors.danger,
+        BookingTone.neutral => AppColors.muted,
+      };
+
+  Color _bg(Booking b) => switch (b.tone) {
+        BookingTone.good || BookingTone.active => AppColors.successSoft,
+        BookingTone.waiting => AppColors.goldSoft,
+        BookingTone.bad => AppColors.dangerSoft,
+        BookingTone.neutral => AppColors.sand,
+      };
+
   /// There is no notifications endpoint for guests (it is staff/admin only),
   /// so "Updates" is built from the guest's own bookings and their statuses.
   void _updates() => showModalBottomSheet(
@@ -59,13 +82,7 @@ class _HomeShellState extends State<HomeShell> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                        child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                                color: AppColors.line,
-                                borderRadius: BorderRadius.circular(4)))),
+                    const Handle(),
                     const SizedBox(height: 16),
                     Text('Booking updates', style: serif(22)),
                     const SizedBox(height: 8),
@@ -85,8 +102,8 @@ class _HomeShellState extends State<HomeShell> {
                                     child: CircularProgressIndicator(
                                         color: AppColors.green)));
                           }
-                          final list = [...s.data!]..sort(
-                              (a, b) => b.checkIn.compareTo(a.checkIn));
+                          final list = [...s.data!]
+                            ..sort((a, b) => b.checkIn.compareTo(a.checkIn));
                           if (list.isEmpty) {
                             return const Padding(
                                 padding: EdgeInsets.all(16),
@@ -100,25 +117,36 @@ class _HomeShellState extends State<HomeShell> {
                             itemBuilder: (_, i) {
                               final b = list[i];
                               return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: CircleAvatar(
-                                  backgroundColor: AppColors.greenSoft,
-                                  child: Icon(
-                                      b.cancelled || b.paymentRejected
-                                          ? Icons.cancel_outlined
-                                          : b.completed
-                                              ? Icons.task_alt
-                                              : b.paymentApproved || b.checkedIn
-                                                  ? Icons.check_circle_outline
-                                                  : Icons.schedule,
-                                      color: AppColors.green),
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 4),
+                                leading: Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                      color: _bg(b),
+                                      borderRadius: BorderRadius.circular(12)),
+                                  child: Icon(_icon(b), color: _fg(b)),
                                 ),
                                 title: Text('${b.roomTitle} · ${b.bookingCode}',
                                     style: const TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600)),
-                                subtitle: Text(b.statusMessage,
-                                    style: const TextStyle(fontSize: 12)),
+                                subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 2),
+                                      Text(b.statusMessage,
+                                          style: const TextStyle(
+                                              fontSize: 12, height: 1.35)),
+                                      const SizedBox(height: 3),
+                                      Text('Check-in ${fmtWhen(b.checkIn)}',
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.muted)),
+                                    ]),
+                                trailing: const Icon(Icons.chevron_right,
+                                    color: AppColors.muted),
                                 onTap: () {
                                   Navigator.pop(ctx);
                                   showBookingSheet(context, b);
@@ -143,22 +171,22 @@ class _HomeShellState extends State<HomeShell> {
         titleSpacing: 16,
         title: Row(children: [
           Container(
-            width: 34,
-            height: 30,
+            width: 36,
+            height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-                color: AppColors.green, borderRadius: BorderRadius.circular(8)),
+                color: AppColors.green,
+                borderRadius: BorderRadius.circular(11)),
             child: const Text('NPH',
                 style: TextStyle(
                     color: Colors.white,
-                    fontSize: 10,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700)),
           ),
           const SizedBox(width: 10),
-          const Flexible(
+          Flexible(
             child: Text(Config.appName,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                overflow: TextOverflow.ellipsis, style: serif(17)),
           ),
         ]),
         actions: [
@@ -169,33 +197,54 @@ class _HomeShellState extends State<HomeShell> {
                   color: AppColors.coral)),
           GestureDetector(
             onTap: () => homeTab.value = tabProfile,
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.green,
-              child: Text(initials(user.fullName),
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                  color: AppColors.coral, shape: BoxShape.circle),
+              child: CircleAvatar(
+                radius: 15,
+                backgroundColor: AppColors.green,
+                child: Text(initials(user.fullName),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ),
             ),
           ),
           const SizedBox(width: 14),
         ],
       ),
-      body: _pages[homeTab.value],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: homeTab.value,
-        onDestinationSelected: (i) => homeTab.value = i,
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.bed_outlined), label: 'Rooms'),
-          NavigationDestination(
-              icon: Icon(Icons.calendar_today_outlined), label: 'Bookings'),
-          NavigationDestination(
-              icon: Icon(Icons.favorite_border), label: 'Saved'),
-          NavigationDestination(
-              icon: Icon(Icons.person_outline), label: 'Profile'),
-        ],
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        child: KeyedSubtree(
+            key: ValueKey(homeTab.value), child: _pages[homeTab.value]),
+      ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.line))),
+        child: NavigationBar(
+          selectedIndex: homeTab.value,
+          onDestinationSelected: (i) => homeTab.value = i,
+          destinations: const [
+            NavigationDestination(
+                icon: Icon(Icons.bed_outlined),
+                selectedIcon: Icon(Icons.bed_rounded),
+                label: 'Rooms'),
+            NavigationDestination(
+                icon: Icon(Icons.calendar_today_outlined),
+                selectedIcon: Icon(Icons.calendar_month_rounded),
+                label: 'Bookings'),
+            NavigationDestination(
+                icon: Icon(Icons.favorite_border),
+                selectedIcon: Icon(Icons.favorite_rounded),
+                label: 'Saved'),
+            NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Profile'),
+          ],
+        ),
       ),
     );
   }

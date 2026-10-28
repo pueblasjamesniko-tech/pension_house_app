@@ -6,12 +6,25 @@ void toast(BuildContext c, String m, {bool error = false}) =>
     ScaffoldMessenger.of(c)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: Text(m),
+        content: Row(children: [
+          Icon(
+              error
+                  ? Icons.error_outline_rounded
+                  : Icons.check_circle_outline_rounded,
+              color: Colors.white,
+              size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+              child:
+                  Text(m, style: const TextStyle(fontSize: 13, height: 1.35))),
+        ]),
         behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         backgroundColor: error ? AppColors.danger : AppColors.green,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ));
 
+/// White rounded card.
 class Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -31,9 +44,50 @@ class Panel extends StatelessWidget {
         decoration: BoxDecoration(
             color: color ?? Colors.white,
             borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: borderColor ?? AppColors.line)),
+            border: Border.all(color: borderColor ?? AppColors.line),
+            boxShadow: AppShadow.soft),
         child: child,
       );
+}
+
+/// The small grey bar at the top of bottom sheets.
+class Handle extends StatelessWidget {
+  const Handle({super.key});
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: AppColors.line, borderRadius: BorderRadius.circular(4))),
+      );
+}
+
+/// White round button used over photos (back, close...).
+class CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+  const CircleIconButton(
+      {super.key, required this.icon, required this.onTap, this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 2,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+            padding: const EdgeInsets.all(9),
+            child: Icon(icon, size: 20, color: AppColors.green)),
+      ),
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
+  }
 }
 
 class SectionTitle extends StatelessWidget {
@@ -53,26 +107,34 @@ class PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool loading, outlined;
+  final IconData? icon;
   const PrimaryButton(this.label,
       {super.key,
       this.onPressed,
       this.loading = false,
-      this.outlined = false});
+      this.outlined = false,
+      this.icon});
 
   @override
   Widget build(BuildContext context) {
-    final child = loading
+    final Widget child = loading
         ? SizedBox(
             height: 20,
             width: 20,
             child: CircularProgressIndicator(
                 strokeWidth: 2,
                 color: outlined ? AppColors.green : Colors.white))
-        : Text(label);
+        : Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+            if (icon != null) ...[
+              const SizedBox(width: 8),
+              Icon(icon, size: 18),
+            ],
+          ]);
     final tap = loading ? null : onPressed;
     return SizedBox(
       width: double.infinity,
-      height: 50,
+      height: 52,
       child: outlined
           ? OutlinedButton(onPressed: tap, child: child)
           : FilledButton(onPressed: tap, child: child),
@@ -122,7 +184,7 @@ class _AppFieldState extends State<AppField> {
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(widget.label,
             style:
-                const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500)),
+                const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         TextFormField(
           controller: widget.controller,
@@ -142,14 +204,15 @@ class _AppFieldState extends State<AppField> {
             counterText: '',
             prefixIcon: widget.icon == null
                 ? null
-                : Icon(widget.icon, size: 18, color: AppColors.muted),
+                : Icon(widget.icon, size: 19, color: AppColors.muted),
             suffixIcon: widget.password
                 ? IconButton(
+                    tooltip: _hide ? 'Show password' : 'Hide password',
                     icon: Icon(
                         _hide
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
-                        size: 18,
+                        size: 19,
                         color: AppColors.muted),
                     onPressed: () => setState(() => _hide = !_hide))
                 : null,
@@ -166,7 +229,7 @@ class RoomImage extends StatelessWidget {
       {super.key, this.url, this.height, this.radius = BorderRadius.zero});
 
   Widget get _placeholder => Container(
-      color: const Color(0xFFEDE8DA),
+      color: AppColors.sand,
       child: const Center(
           child: Icon(Icons.bed_outlined, size: 36, color: AppColors.muted)));
 
@@ -181,6 +244,13 @@ class RoomImage extends StatelessWidget {
               : Image.network(
                   url!,
                   fit: BoxFit.cover,
+                  frameBuilder: (_, child, frame, sync) => sync
+                      ? child
+                      : AnimatedOpacity(
+                          opacity: frame == null ? 0 : 1,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                          child: child),
                   loadingBuilder: (_, child, p) =>
                       p == null ? child : _placeholder,
                   errorBuilder: (_, __, ___) => _placeholder,
@@ -204,17 +274,18 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Panel(
-        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
         child: Column(children: [
           CircleAvatar(
-              radius: 28,
+              radius: 30,
               backgroundColor: AppColors.greenSoft,
-              child: Icon(icon, color: AppColors.green)),
+              child: Icon(icon, color: AppColors.green, size: 28)),
           const SizedBox(height: 14),
           Text(title, style: serif(18), textAlign: TextAlign.center),
           const SizedBox(height: 6),
           Text(message,
-              style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+              style: const TextStyle(
+                  fontSize: 12.5, color: AppColors.muted, height: 1.45),
               textAlign: TextAlign.center),
           if (action != null && onAction != null) ...[
             const SizedBox(height: 18),
@@ -230,16 +301,17 @@ class EmptyState extends StatelessWidget {
 }
 
 /// Shows a spinner, then the data, or a friendly error with a retry button.
-/// While refreshing it keeps showing the old data (no flicker).
 class AsyncView<T> extends StatelessWidget {
   final Future<T> future;
   final Widget Function(T data) builder;
   final VoidCallback onRetry;
+  final Widget? loading;
   const AsyncView(
       {super.key,
       required this.future,
       required this.builder,
-      required this.onRetry});
+      required this.onRetry,
+      this.loading});
 
   @override
   Widget build(BuildContext context) => FutureBuilder<T>(
@@ -249,9 +321,47 @@ class AsyncView<T> extends StatelessWidget {
           if (s.connectionState == ConnectionState.done && s.hasError) {
             return ErrorView(message: '${s.error}', onRetry: onRetry);
           }
-          return const Center(
-              child: CircularProgressIndicator(color: AppColors.green));
+          return loading ??
+              const Center(
+                  child: CircularProgressIndicator(color: AppColors.green));
         },
+      );
+}
+
+/// Soft pulsing block used for loading placeholders.
+class Skeleton extends StatefulWidget {
+  final double width, height, radius;
+  const Skeleton(
+      {super.key,
+      this.width = double.infinity,
+      this.height = 14,
+      this.radius = 8});
+  @override
+  State<Skeleton> createState() => _SkeletonState();
+}
+
+class _SkeletonState extends State<Skeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 900))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: Tween<double>(begin: .45, end: 1).animate(_c),
+        child: Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+              color: AppColors.sandDeep,
+              borderRadius: BorderRadius.circular(widget.radius)),
+        ),
       );
 }
 
@@ -266,9 +376,10 @@ class ErrorView extends StatelessWidget {
           padding: const EdgeInsets.all(28),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const CircleAvatar(
-                radius: 28,
+                radius: 30,
                 backgroundColor: AppColors.coralSoft,
-                child: Icon(Icons.wifi_off_rounded, color: AppColors.coral)),
+                child: Icon(Icons.wifi_off_rounded,
+                    color: AppColors.coral, size: 28)),
             const SizedBox(height: 14),
             Text(message,
                 textAlign: TextAlign.center,
@@ -304,8 +415,9 @@ class KeyValue extends StatelessWidget {
                   child: Text(v,
                       textAlign: TextAlign.end,
                       style: TextStyle(
-                          fontSize: bold ? 14 : 12.5,
-                          fontWeight: bold ? FontWeight.w700 : FontWeight.w500))),
+                          fontSize: bold ? 14.5 : 12.5,
+                          fontWeight:
+                              bold ? FontWeight.w700 : FontWeight.w500))),
             ]),
       );
 }
@@ -320,12 +432,12 @@ class Pill extends StatelessWidget {
 
   factory Pill.good(String l) => Pill(l,
       fg: AppColors.success, bg: AppColors.successSoft, icon: Icons.circle);
-  factory Pill.warn(String l) =>
-      Pill(l, fg: const Color(0xFF8A5B00), bg: AppColors.goldSoft, icon: Icons.circle);
-  factory Pill.bad(String l) =>
-      Pill(l, fg: AppColors.danger, bg: AppColors.dangerSoft, icon: Icons.circle);
+  factory Pill.warn(String l) => Pill(l,
+      fg: const Color(0xFF8A5B00), bg: AppColors.goldSoft, icon: Icons.circle);
+  factory Pill.bad(String l) => Pill(l,
+      fg: AppColors.danger, bg: AppColors.dangerSoft, icon: Icons.circle);
   factory Pill.neutral(String l) =>
-      Pill(l, fg: AppColors.muted, bg: const Color(0xFFEFEBDD), icon: Icons.circle);
+      Pill(l, fg: AppColors.muted, bg: AppColors.sand, icon: Icons.circle);
 
   @override
   Widget build(BuildContext context) => Container(
@@ -350,7 +462,8 @@ class StarRating extends StatelessWidget {
   final double size;
   const StarRating(this.rating, {super.key, this.size = 16});
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+  Widget build(BuildContext context) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
         for (var i = 1; i <= 5; i++)
           Icon(
               rating >= i
@@ -373,7 +486,10 @@ class StarPicker extends StatelessWidget {
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         for (var i = 1; i <= 5; i++)
           IconButton(
-            onPressed: () => onChanged(i),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              onChanged(i);
+            },
             iconSize: 38,
             padding: const EdgeInsets.symmetric(horizontal: 2),
             constraints: const BoxConstraints(),
@@ -394,7 +510,8 @@ Future<bool> confirmDialog(BuildContext context,
     context: context,
     builder: (c) => AlertDialog(
       title: Text(title, style: serif(20)),
-      content: Text(message, style: const TextStyle(fontSize: 13.5, height: 1.4)),
+      content:
+          Text(message, style: const TextStyle(fontSize: 13.5, height: 1.45)),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(c, false),

@@ -48,8 +48,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         referenceCode: _ref.text.replaceAll(RegExp(r'\s'), ''),
       );
       if (!mounted) return;
-      Navigator.pushReplacement(context,
-          MaterialPageRoute(builder: (_) => BookingSuccessScreen(bookingId: id)));
+      Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (_) => BookingSuccessScreen(bookingId: id)));
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message, error: true);
     } finally {
@@ -57,57 +59,116 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  Widget _stepNumber(int n) => Container(
-        width: 24,
-        height: 24,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-            color: AppColors.green, shape: BoxShape.circle),
-        child: Text('$n',
-            style: const TextStyle(
-                color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+  // ---- pieces ----------------------------------------------------------
+
+  Widget _when(String label, DateTime d, {bool right = false}) => Expanded(
+        child: Column(
+            crossAxisAlignment:
+                right ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Text(label, style: overline()),
+              const SizedBox(height: 4),
+              Text(fmtTime(d), style: serif(21)),
+              Text(fmtDay(d),
+                  style:
+                      const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+            ]),
       );
 
+  Widget _summary(String guest) {
+    final r = widget.room;
+    final rate = widget.rate;
+    return Panel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          SizedBox(
+            width: 76,
+            height: 60,
+            child: RoomImage(url: r.cover, radius: BorderRadius.circular(12)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r.title, style: serif(18)),
+              const SizedBox(height: 2),
+              Text('Room ${r.roomNo}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            ]),
+          ),
+        ]),
+        const Divider(height: 28),
+        Row(children: [
+          _when('CHECK-IN', widget.checkIn),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+                color: AppColors.coralSoft,
+                borderRadius: BorderRadius.circular(20)),
+            child: Text(hoursLabel(rate.hours),
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.coral)),
+          ),
+          _when('CHECK-OUT', _checkOut, right: true),
+        ]),
+        const Divider(height: 28),
+        KeyValue('Guest', guest),
+        KeyValue(
+            'Stay', rate.label.isEmpty ? hoursLabel(rate.hours) : rate.label),
+        const Divider(height: 18),
+        KeyValue('Total to pay', peso(rate.price), bold: true),
+      ]),
+    );
+  }
+
+  /// Green "card" with the GCash number the guest must pay.
   Widget _gcash(AppSettings s) {
     final number = s.gcashNumber;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(
+    if (number == null) {
+      return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color: AppColors.greenSoft,
-            borderRadius: BorderRadius.circular(12)),
-        child: number == null
-            ? const Text(
-                'GCash details are not set yet. Please contact the front desk.',
-                style: TextStyle(fontSize: 12.5))
-            : Row(children: [
-                Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('GCASH NUMBER',
-                            style: TextStyle(
-                                fontSize: 10,
-                                letterSpacing: .7,
-                                color: AppColors.muted)),
-                        const SizedBox(height: 2),
-                        Text(number, style: serif(21)),
-                        if (s.gcashName != null)
-                          Text(s.gcashName!,
-                              style: const TextStyle(
-                                  fontSize: 12.5, color: AppColors.ink)),
-                      ]),
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'Copy number',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: number));
-                    toast(context, 'GCash number copied');
-                  },
-                  icon: const Icon(Icons.copy_rounded, size: 18),
-                ),
-              ]),
+            color: AppColors.goldSoft, borderRadius: BorderRadius.circular(12)),
+        child: const Text(
+            'GCash details are not set yet. Please contact the front desk.',
+            style: TextStyle(fontSize: 12.5)),
+      );
+    }
+    return Column(children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+        decoration: BoxDecoration(
+            color: AppColors.green,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: AppShadow.soft),
+        child: Row(children: [
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('GCASH NUMBER', style: overline(color: Colors.white60)),
+              const SizedBox(height: 4),
+              Text(number, style: mono(20, color: Colors.white)),
+              if (s.gcashName != null) ...[
+                const SizedBox(height: 2),
+                Text(s.gcashName!,
+                    style:
+                        const TextStyle(fontSize: 12.5, color: Colors.white70)),
+              ],
+            ]),
+          ),
+          IconButton(
+            tooltip: 'Copy number',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: number));
+              toast(context, 'GCash number copied');
+            },
+            icon: const Icon(Icons.copy_rounded, size: 20, color: Colors.white),
+          ),
+        ]),
       ),
       // Optional QR: add assets/gcash_qr.png to your project to show it here.
       Center(
@@ -124,7 +185,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ApiService.instance.user!;
-    final r = widget.room;
     final rate = widget.rate;
 
     return Scaffold(
@@ -135,138 +195,210 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(16),
             children: [
-              // ---- stay summary ----
-              Panel(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        SizedBox(
-                          width: 72,
-                          height: 56,
-                          child: RoomImage(
-                              url: r.cover, radius: BorderRadius.circular(10)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(r.title, style: serif(17)),
-                                Text('Room ${r.roomNo}',
-                                    style: const TextStyle(
-                                        fontSize: 12, color: AppColors.muted)),
-                              ]),
-                        ),
-                      ]),
-                      const Divider(height: 26),
-                      KeyValue('Guest', user.fullName),
-                      KeyValue('Check-in', fmtWhen(widget.checkIn)),
-                      KeyValue('Check-out', fmtWhen(_checkOut)),
-                      KeyValue(
-                          'Stay',
-                          rate.label.isEmpty
-                              ? hoursLabel(rate.hours)
-                              : rate.label),
-                      const Divider(height: 18),
-                      KeyValue('Total to pay', peso(rate.price), bold: true),
-                    ]),
-              ),
-              const SizedBox(height: 14),
+              _summary(user.fullName),
+              const SizedBox(height: 16),
 
-              // ---- GCash payment ----
+              // ---- GCash payment, in 3 steps ----
               Panel(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Pay with GCash', style: serif(19)),
-                      const SizedBox(height: 14),
-                      Row(children: [
-                        _stepNumber(1),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text.rich(TextSpan(children: [
-                            const TextSpan(text: 'Send exactly '),
-                            TextSpan(
-                                text: peso(rate.price),
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.coral)),
-                            const TextSpan(text: ' to the GCash account below.'),
-                          ]), style: const TextStyle(fontSize: 13)),
-                        ),
-                      ]),
-                      const SizedBox(height: 12),
-                      FutureBuilder<AppSettings>(
-                        future: _settings,
-                        builder: (_, s) {
-                          if (s.hasData) return _gcash(s.data!);
-                          if (s.hasError) {
-                            return Column(children: [
-                              Text('${s.error}',
-                                  style: const TextStyle(fontSize: 12.5)),
-                              TextButton(
-                                  onPressed: () => setState(() => _settings =
-                                      ApiService.instance
-                                          .settings(refresh: true)),
-                                  child: const Text('Try again')),
-                            ]);
-                          }
-                          return const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(
-                                  child: CircularProgressIndicator(
-                                      color: AppColors.green)));
-                        },
+                      Text('Pay with GCash', style: serif(20)),
+                      const SizedBox(height: 16),
+                      _Step(
+                        n: 1,
+                        title: 'Send exactly ${peso(rate.price)}',
+                        child: Column(children: [
+                          FutureBuilder<AppSettings>(
+                            future: _settings,
+                            builder: (_, s) {
+                              if (s.hasData) return _gcash(s.data!);
+                              if (s.hasError) {
+                                return Column(children: [
+                                  Text('${s.error}',
+                                      style: const TextStyle(fontSize: 12.5)),
+                                  TextButton(
+                                      onPressed: () => setState(() =>
+                                          _settings = ApiService.instance
+                                              .settings(refresh: true)),
+                                      child: const Text('Try again')),
+                                ]);
+                              }
+                              return const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Center(
+                                      child: CircularProgressIndicator(
+                                          color: AppColors.green)));
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(
+                                    text: rate.price.toStringAsFixed(2)));
+                                toast(context, 'Amount copied');
+                              },
+                              icon: const Icon(Icons.copy_rounded, size: 16),
+                              label: Text('Copy amount (${peso(rate.price)})'),
+                            ),
+                          ),
+                        ]),
                       ),
-                      const SizedBox(height: 18),
-                      Row(children: [
-                        _stepNumber(2),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Text(
-                              'Enter the reference number from your GCash receipt.',
-                              style: TextStyle(fontSize: 13)),
+                      _Step(
+                        n: 2,
+                        title:
+                            'Enter the reference number from your GCash receipt',
+                        child: AppField(
+                          controller: _ref,
+                          label: 'GCash reference number',
+                          hint: 'e.g. 1234 567 890123',
+                          icon: Icons.receipt_long_outlined,
+                          maxLength: 60,
+                          action: TextInputAction.done,
+                          capitalization: TextCapitalization.characters,
+                          onSubmitted: (_) => _submit(),
+                          formatters: [
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'[A-Za-z0-9\- ]'))
+                          ],
+                          validator: (v) {
+                            final t = (v ?? '').replaceAll(RegExp(r'\s'), '');
+                            if (t.isEmpty) {
+                              return 'Enter your GCash reference number';
+                            }
+                            if (t.length < 6) {
+                              return 'That reference number looks too short';
+                            }
+                            if (t.length > 50) {
+                              return 'That reference number is too long';
+                            }
+                            return null;
+                          },
                         ),
-                      ]),
-                      const SizedBox(height: 12),
-                      AppField(
-                        controller: _ref,
-                        label: 'GCash reference number',
-                        hint: 'e.g. 1234 567 890123',
-                        icon: Icons.receipt_long_outlined,
-                        maxLength: 60,
-                        action: TextInputAction.done,
-                        capitalization: TextCapitalization.characters,
-                        onSubmitted: (_) => _submit(),
-                        formatters: [
-                          FilteringTextInputFormatter.allow(
-                              RegExp(r'[A-Za-z0-9\- ]'))
-                        ],
-                        validator: (v) {
-                          final t = (v ?? '').replaceAll(RegExp(r'\s'), '');
-                          if (t.isEmpty) return 'Enter your GCash reference number';
-                          if (t.length < 6) return 'That reference number looks too short';
-                          if (t.length > 50) return 'That reference number is too long';
-                          return null;
-                        },
+                      ),
+                      const _Step(
+                        n: 3,
+                        title: 'Tap “Confirm booking”',
+                        last: true,
+                        child: Text(
+                            'Each reference number can only be used once. Our staff will then verify your payment.',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.muted,
+                                height: 1.45)),
                       ),
                     ]),
               ),
               const SizedBox(height: 12),
-              Panel(
+              const Panel(
                 color: AppColors.goldSoft,
                 borderColor: Colors.transparent,
-                padding: const EdgeInsets.all(12),
-                child: const Text(
-                    'Your booking stays “awaiting payment check” until our staff verifies your GCash payment. You can follow its status under Bookings.',
-                    style: TextStyle(fontSize: 12, height: 1.45)),
+                padding: EdgeInsets.all(12),
+                child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 18, color: Color(0xFF8A5B00)),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                            'Your booking stays “awaiting payment check” until staff verify your GCash payment. You can follow its status under Bookings.',
+                            style: TextStyle(fontSize: 12, height: 1.45)),
+                      ),
+                    ]),
               ),
-              const SizedBox(height: 16),
-              PrimaryButton('Confirm booking', loading: _busy, onPressed: _submit),
               const SizedBox(height: 8),
             ]),
       ),
+
+      // ---- sticky confirm bar ----
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: AppColors.line))),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(children: [
+              Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('TOTAL', style: overline()),
+                    const SizedBox(height: 2),
+                    Text(peso(rate.price), style: serif(23)),
+                  ]),
+              const SizedBox(width: 20),
+              Expanded(
+                  child: PrimaryButton('Confirm booking',
+                      icon: Icons.check_rounded,
+                      loading: _busy,
+                      onPressed: _submit)),
+            ]),
+          ),
+        ),
+      ),
     );
   }
+}
+
+/// One numbered step with a line connecting it to the next one.
+class _Step extends StatelessWidget {
+  final int n;
+  final String title;
+  final Widget? child;
+  final bool last;
+  const _Step(
+      {required this.n, required this.title, this.child, this.last = false});
+
+  @override
+  Widget build(BuildContext context) => IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SizedBox(
+            width: 26,
+            child: Column(children: [
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                    color: AppColors.green, shape: BoxShape.circle),
+                child: Text('$n',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
+              ),
+              if (!last)
+                Expanded(
+                    child: Container(
+                        width: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        color: AppColors.line)),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: last ? 0 : 16),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(title,
+                          style: const TextStyle(
+                              fontSize: 13.5, fontWeight: FontWeight.w600)),
+                    ),
+                    if (child != null) ...[
+                      const SizedBox(height: 10),
+                      child!,
+                    ],
+                  ]),
+            ),
+          ),
+        ]),
+      );
 }

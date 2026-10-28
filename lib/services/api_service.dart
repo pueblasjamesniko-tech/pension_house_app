@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show SocketException;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,7 +24,7 @@ class ApiException implements Exception {
 
 /// Every call to the PensionHouse.API lives here.
 ///
-///  AUTH      POST auth/register · POST auth/login
+///  AUTH      GET auth/id-types · POST auth/register (multipart) · POST auth/login
 ///  ROOMS     GET rooms · GET rooms/available?checkIn=&hours=
 ///  BOOKINGS  POST bookings · GET bookings/mine · GET bookings/{id}
 ///            PATCH bookings/{id}/cancel
@@ -105,20 +106,38 @@ class ApiService {
     await SavedRooms.instance.load(u.id);
   }
 
-  /// The API's register does not return a token, so we sign in right after.
+  /// The ID types the API accepts (fills the dropdown on the register screen).
+  Future<List<String>> idTypes() async {
+    final d = await _send('GET', 'auth/id-types', auth: false) as List;
+    return [for (final t in d) '$t'];
+  }
+
+  /// The API's register is multipart/form-data and REQUIRES an ID type and a
+  /// JPG/PNG photo of the ID. It does not return a token, so we sign in after.
   Future<void> register({
     required String fullName,
     required String email,
     required String password,
+    required String idType,
+    required Uint8List idImage,
+    required String idFileName,
     String? contactNo,
   }) async {
-    await _send('POST', 'auth/register', auth: false, body: {
-      'fullName': fullName.trim(),
-      'email': email.trim(),
-      'password': password,
-      if (contactNo != null && contactNo.trim().isNotEmpty)
-        'contactNo': contactNo.trim(),
-    });
+    final req = http.MultipartRequest(
+        'POST', Uri.parse('${Config.baseUrl}/auth/register'))
+      ..headers['Accept'] = 'application/json'
+      ..fields['FullName'] = fullName.trim()
+      ..fields['Email'] = email.trim()
+      ..fields['Password'] = password
+      ..fields['IdType'] = idType;
+    if (contactNo != null && contactNo.trim().isNotEmpty) {
+      req.fields['ContactNo'] = contactNo.trim();
+    }
+    req.files.add(
+        http.MultipartFile.fromBytes('IdImage', idImage, filename: idFileName));
+
+    // Uploading a photo can take longer than a normal request.
+    await _execute(req, auth: false, timeout: const Duration(seconds: 60));
     await login(email, password);
   }
 
@@ -126,6 +145,7 @@ class ApiService {
     _token = null;
     user = null;
     _settings = null;
+    _ratings.clear();
     SavedRooms.instance.clear();
     final p = await SharedPreferences.getInstance();
     await p.remove('token');
@@ -136,9 +156,28 @@ class ApiService {
 
   Future<List<Room>> rooms() async {
     final d = await _send('GET', 'rooms') as List;
-    return [
+    final list = [
       for (final j in d) Room.fromJson(Map<String, dynamic>.from(j as Map))
     ];
+    await _loadRatings(list); // so room cards can show stars right away
+    return list;
+  }
+
+  // Ratings cache: roomId -> summary (average + number of reviews)
+  final Map<int, ReviewSummary> _ratings = {};
+  ReviewSummary? ratingOf(int roomId) => _ratings[roomId];
+
+  Future<void> _loadRatings(List<Room> rooms) async {
+    await Future.wait(rooms.map((r) async {
+      try {
+        final d = Map<String, dynamic>.from(
+            await _send('GET', 'reviews/room/${r.id}') as Map);
+        _ratings[r.id] = ReviewSummary.fromJson(
+            Map<String, dynamic>.from(d['summary'] as Map));
+      } catch (_) {
+        // A rating that fails to load must never break the rooms list.
+      }
+    }));
   }
 
   /// Ids of rooms that are free for the whole stay (no overlapping booking).
@@ -178,8 +217,7 @@ class ApiService {
     return (d['id'] as num).toInt();
   }
 
-  Future<void> cancelBooking(int id) =>
-      _send('PATCH', 'bookings/$id/cancel');
+  Future<void> cancelBooking(int id) => _send('PATCH', 'bookings/$id/cancel');
 
   // ------------------------------------------------------------ reviews --
 
@@ -189,18 +227,22 @@ class ApiService {
     return {for (final j in d) (j['bookingId'] as num).toInt()};
   }
 
-  Future<void> createReview(int bookingId, int rating, String? comment) =>
-      _send('POST', 'reviews', body: {
-        'bookingId': bookingId,
-        'rating': rating,
-        'comment': (comment ?? '').trim().isEmpty ? null : comment!.trim(),
-      });
+  Future<void> createReview(int bookingId, int rating, String? comment) async {
+    await _send('POST', 'reviews', body: {
+      'bookingId': bookingId,
+      'rating': rating,
+      'comment': (comment ?? '').trim().isEmpty ? null : comment!.trim(),
+    });
+    _ratings.clear(); // refreshed the next time rooms are loaded
+  }
 
-  Future<void> updateReview(int id, int rating, String? comment) =>
-      _send('PUT', 'reviews/$id', body: {
-        'rating': rating,
-        'comment': (comment ?? '').trim().isEmpty ? null : comment!.trim(),
-      });
+  Future<void> updateReview(int id, int rating, String? comment) async {
+    await _send('PUT', 'reviews/$id', body: {
+      'rating': rating,
+      'comment': (comment ?? '').trim().isEmpty ? null : comment!.trim(),
+    });
+    _ratings.clear();
+  }
 
   Future<List<Review>> myReviews() async {
     final d = await _send('GET', 'reviews/mine') as List;
@@ -212,8 +254,11 @@ class ApiService {
   Future<RoomReviews> roomReviews(int roomId) async {
     final d = Map<String, dynamic>.from(
         await _send('GET', 'reviews/room/$roomId') as Map);
+    final summary =
+        ReviewSummary.fromJson(Map<String, dynamic>.from(d['summary'] as Map));
+    _ratings[roomId] = summary;
     return RoomReviews(
-      ReviewSummary.fromJson(Map<String, dynamic>.from(d['summary'] as Map)),
+      summary,
       [
         for (final j in (d['reviews'] as List? ?? const []))
           Review.fromJson(Map<String, dynamic>.from(j as Map))
@@ -233,37 +278,47 @@ class ApiService {
 
   static String asRole(dynamic r) => '$r'.trim().toLowerCase();
 
+  /// Builds a normal JSON request and runs it.
   Future<dynamic> _send(
     String method,
     String path, {
     Map<String, dynamic>? body,
     Map<String, String>? query,
     bool auth = true,
-  }) async {
+  }) {
     var uri = Uri.parse('${Config.baseUrl}/$path');
     if (query != null) uri = uri.replace(queryParameters: query);
 
     final req = http.Request(method, uri)
-      ..headers['Accept'] = 'application/json'
-      ..headers.addAll({
-        if (body != null) 'Content-Type': 'application/json; charset=utf-8',
-        if (auth && _token != null) 'Authorization': 'Bearer $_token',
-      });
-    if (body != null) req.body = jsonEncode(body);
+      ..headers['Accept'] = 'application/json';
+    if (body != null) {
+      req.headers['Content-Type'] = 'application/json; charset=utf-8';
+      req.body = jsonEncode(body);
+    }
+    return _execute(req, auth: auth);
+  }
+
+  /// Sends any request (JSON or multipart) and turns errors into [ApiException].
+  Future<dynamic> _execute(
+    http.BaseRequest req, {
+    required bool auth,
+    Duration? timeout,
+  }) async {
+    if (auth && _token != null) {
+      req.headers['Authorization'] = 'Bearer $_token';
+    }
 
     final http.Response res;
     try {
       res = await http.Response.fromStream(
-          await req.send().timeout(Config.requestTimeout));
+          await req.send().timeout(timeout ?? Config.requestTimeout));
     } on TimeoutException {
       throw ApiException(
           'The server took too long to respond. Please try again.');
-    } on SocketException {
-      throw ApiException(
-          "Can't reach the server. Check your Wi-Fi and the API address.");
-    } on http.ClientException {
-      throw ApiException(
-          "Can't reach the server. Check your Wi-Fi and the API address.");
+    } on SocketException catch (e) {
+      throw ApiException("Can't reach ${req.url}\n${e.message} ${e.osError}");
+    } on http.ClientException catch (e) {
+      throw ApiException("Can't reach ${req.url}\n${e.message}");
     }
 
     dynamic data;
@@ -305,6 +360,10 @@ class ApiService {
         return "You don't have permission to do that.";
       case 404:
         return 'We could not find that.';
+      case 413:
+        return 'That photo is too large. Please use a smaller one.';
+      case 415:
+        return 'The server could not read that request. Please update the app.';
       case 500:
         return 'Something went wrong on the server. Please try again.';
       default:
