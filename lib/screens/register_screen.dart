@@ -192,7 +192,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: _idType,
+                  initialValue: _idType,
                   isExpanded: true,
                   menuMaxHeight: 320,
                   borderRadius: BorderRadius.circular(AppRadius.field),

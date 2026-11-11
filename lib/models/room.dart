@@ -1,3 +1,4 @@
+import '../core/config.dart';
 import 'json_utils.dart';
 
 /// One price option of a room, e.g. "3 hours" - ₱500
@@ -46,9 +47,8 @@ class Room {
     this.currentCheckOut,
   });
 
-  RoomRate? get cheapest => rates.isEmpty
-      ? null
-      : rates.reduce((a, b) => a.price <= b.price ? a : b);
+  RoomRate? get cheapest =>
+      rates.isEmpty ? null : rates.reduce((a, b) => a.price <= b.price ? a : b);
 
   String? get cover => photos.isEmpty ? null : photos.first;
 
@@ -58,12 +58,19 @@ class Room {
       'Room $roomNo · fits $capacity guest${capacity == 1 ? '' : 's'}';
 
   factory Room.fromJson(Map<String, dynamic> j) {
-    final photos = [
-      for (final p in (j['photos'] as List? ?? const []))
-        if ('$p'.isNotEmpty) '$p'
-    ];
+    // Photos are saved by the admin as web addresses; make each one openable
+    // from this phone (see Config.resolvePhoto) and drop empties/duplicates.
+    final photos = <String>[];
+    void add(Object? raw) {
+      final u = Config.resolvePhoto(raw == null ? null : '$raw');
+      if (u != null && !photos.contains(u)) photos.add(u);
+    }
+
     final cover = asStrOrNull(j['imageUrl']);
-    if (photos.isEmpty && cover != null) photos.add(cover);
+    for (final p in (j['photos'] as List? ?? const [])) {
+      add(p is Map ? (p['url'] ?? p['Url']) : p);
+    }
+    if (photos.isEmpty) add(cover);
 
     final rates = [
       for (final r in (j['rates'] as List? ?? const []))

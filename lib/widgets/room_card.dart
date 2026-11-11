@@ -101,6 +101,28 @@ class RoomCard extends StatelessWidget {
                 ),
               ),
               Positioned(top: 12, left: 12, child: roomStatusPill(room)),
+              if (room.photos.length > 1)
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: const Color(0x99000000),
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.photo_library_outlined,
+                          size: 13, color: Colors.white),
+                      const SizedBox(width: 5),
+                      Text('${room.photos.length}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ),
               Positioned(
                   top: 10, right: 10, child: SaveButton(roomId: room.id)),
               Positioned(

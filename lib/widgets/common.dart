@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/config.dart';
 import '../core/theme.dart';
 
 void toast(BuildContext c, String m, {bool error = false}) =>
@@ -221,42 +223,80 @@ class _AppFieldState extends State<AppField> {
       ]);
 }
 
+/// A room photo with a soft loading state and a tidy fallback.
+/// Works on phones AND in Chrome: on the web it lets the browser draw the
+/// picture, so photos hosted on other sites show even without CORS headers.
 class RoomImage extends StatelessWidget {
   final String? url;
   final double? height;
   final BorderRadius radius;
+  final BoxFit fit;
   const RoomImage(
-      {super.key, this.url, this.height, this.radius = BorderRadius.zero});
+      {super.key,
+      this.url,
+      this.height,
+      this.radius = BorderRadius.zero,
+      this.fit = BoxFit.cover});
 
-  Widget get _placeholder => Container(
-      color: AppColors.sand,
-      child: const Center(
-          child: Icon(Icons.bed_outlined, size: 36, color: AppColors.muted)));
-
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: radius,
-        child: SizedBox(
-          height: height,
-          width: double.infinity,
-          child: (url == null || url!.isEmpty)
-              ? _placeholder
-              : Image.network(
-                  url!,
-                  fit: BoxFit.cover,
-                  frameBuilder: (_, child, frame, sync) => sync
-                      ? child
-                      : AnimatedOpacity(
-                          opacity: frame == null ? 0 : 1,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOut,
-                          child: child),
-                  loadingBuilder: (_, child, p) =>
-                      p == null ? child : _placeholder,
-                  errorBuilder: (_, __, ___) => _placeholder,
-                ),
+  Widget _placeholder({bool failed = false}) => Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.sand, AppColors.sandDeep]),
+        ),
+        child: LayoutBuilder(
+          builder: (_, c) => Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(
+                  failed
+                      ? Icons.image_not_supported_outlined
+                      : Icons.bed_outlined,
+                  size: c.maxHeight < 90 ? 22 : 36,
+                  color: AppColors.muted),
+              if (c.maxHeight >= 120) ...[
+                const SizedBox(height: 6),
+                Text(failed ? 'Photo unavailable' : 'No photo yet',
+                    style: const TextStyle(
+                        fontSize: 11.5, color: AppColors.muted)),
+              ],
+            ]),
+          ),
         ),
       );
+
+  @override
+  Widget build(BuildContext context) {
+    final u = Config.resolvePhoto(url);
+    return ClipRRect(
+      borderRadius: radius,
+      child: SizedBox(
+        height: height,
+        width: double.infinity,
+        child: u == null
+            ? _placeholder()
+            : Image.network(
+                u,
+                fit: fit,
+                webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+                frameBuilder: (_, child, frame, sync) => sync
+                    ? child
+                    : AnimatedOpacity(
+                        opacity: frame == null ? 0 : 1,
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeOut,
+                        child: child),
+                loadingBuilder: (_, child, p) => p == null
+                    ? child
+                    : const Skeleton(height: double.infinity, radius: 0),
+                errorBuilder: (_, e, __) {
+                  if (kDebugMode) debugPrint('Room photo failed: $u  ->  $e');
+                  return _placeholder(failed: true);
+                },
+              ),
+      ),
+    );
+  }
 }
 
 class EmptyState extends StatelessWidget {

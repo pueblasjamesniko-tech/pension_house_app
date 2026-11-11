@@ -140,7 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                     color: const Color(0x22FFFFFF),
                     borderRadius: BorderRadius.circular(20)),
-                child: const Text('Guest account',
+                child: const Text('Your account',
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 11,

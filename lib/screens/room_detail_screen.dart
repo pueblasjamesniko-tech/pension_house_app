@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../models/room.dart';
 import '../services/api_service.dart';
 import '../widgets/common.dart';
+import '../widgets/photo_viewer.dart';
 import '../widgets/room_card.dart';
 import '../widgets/room_reviews.dart';
 import '../widgets/save_button.dart';
@@ -289,8 +290,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
               PageView.builder(
                 itemCount: count,
                 onPageChanged: (i) => setState(() => _img = i),
-                itemBuilder: (_, i) =>
-                    RoomImage(url: r.photos.isEmpty ? null : r.photos[i]),
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: r.photos.isEmpty
+                      ? null
+                      : () => showPhotoViewer(context, r.photos,
+                          initial: i, title: r.title),
+                  child: RoomImage(url: r.photos.isEmpty ? null : r.photos[i]),
+                ),
               ),
               Positioned(
                 top: 0,
@@ -319,11 +325,16 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     decoration: BoxDecoration(
                         color: const Color(0x99000000),
                         borderRadius: BorderRadius.circular(20)),
-                    child: Text('${_img + 1} / $count',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.photo_library_outlined,
+                          size: 14, color: Colors.white),
+                      const SizedBox(width: 6),
+                      Text('${_img + 1} / $count',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600)),
+                    ]),
                   ),
                 ),
             ]),
