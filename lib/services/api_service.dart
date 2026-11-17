@@ -32,6 +32,7 @@ class ApiException implements Exception {
 ///  REVIEWS   GET reviews/pending · POST reviews · PUT reviews/{id}
 ///            GET reviews/mine · GET reviews/room/{roomId}
 ///  SETTINGS  GET settings (GCash name/number, business info)
+///            GET settings/gcash-qr (the owner's GCash QR image)
 ///
 /// Errors from the API look like { "message": "..." } and are turned into
 /// [ApiException] with that message so screens can just show it.
@@ -42,6 +43,8 @@ class ApiService {
   String? _token;
   User? user;
   AppSettings? _settings;
+  Uint8List? _qr; // the GCash QR image, kept until the owner changes it
+  String? _qrVersion;
 
   /// Bumps when the server says our token is no longer valid (401).
   final sessionExpired = ValueNotifier<int>(0);
@@ -168,6 +171,8 @@ class ApiService {
     _token = null;
     user = null;
     _settings = null;
+    _qr = null;
+    _qrVersion = null;
     _ratings.clear();
     SavedRooms.instance.clear();
     final p = await SharedPreferences.getInstance();
@@ -295,6 +300,37 @@ class ApiService {
     if (!refresh && _settings != null) return _settings!;
     final d = await _send('GET', 'settings') as Map;
     return _settings = AppSettings.fromJson(Map<String, dynamic>.from(d));
+  }
+
+  /// The owner's GCash QR image. It needs the guest's token, so it is loaded
+  /// here (not with Image.network) and shown with Image.memory.
+  Future<Uint8List> gcashQr(String version) async {
+    if (_qr != null && _qrVersion == version) return _qr!;
+
+    final http.Response res;
+    try {
+      res = await http.get(Uri.parse('${Config.baseUrl}/settings/gcash-qr'),
+          headers: {
+            'Authorization': 'Bearer $_token'
+          }).timeout(Config.requestTimeout);
+    } on TimeoutException {
+      throw ApiException('The QR took too long to load. Please try again.');
+    } on SocketException {
+      throw ApiException("Can't reach the server. Check your connection.");
+    } on http.ClientException {
+      throw ApiException("Can't reach the server. Check your connection.");
+    }
+
+    if (res.statusCode == 401) {
+      await logout();
+      sessionExpired.value++;
+      throw ApiException('Your session expired. Please sign in again.', 401);
+    }
+    if (res.statusCode != 200 || res.bodyBytes.isEmpty) {
+      throw ApiException('The GCash QR is not available right now.');
+    }
+    _qrVersion = version;
+    return _qr = res.bodyBytes;
   }
 
   // --------------------------------------------------------------- http --

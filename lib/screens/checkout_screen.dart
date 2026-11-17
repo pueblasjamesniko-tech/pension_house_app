@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/format.dart';
@@ -123,10 +124,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  /// Green "card" with the GCash number the guest must pay.
+  /// The GCash number card and the owner's QR code. Either can be missing.
   Widget _gcash(AppSettings s) {
     final number = s.gcashNumber;
-    if (number == null) {
+    final hasQr = s.hasGcashQr && s.gcashQrVersion != null;
+
+    if (number == null && !hasQr) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
@@ -138,47 +141,44 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
     }
     return Column(children: [
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-        decoration: BoxDecoration(
-            color: AppColors.green,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: AppShadow.soft),
-        child: Row(children: [
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('GCASH NUMBER', style: overline(color: Colors.white60)),
-              const SizedBox(height: 4),
-              Text(number, style: mono(20, color: Colors.white)),
-              if (s.gcashName != null) ...[
-                const SizedBox(height: 2),
-                Text(s.gcashName!,
-                    style:
-                        const TextStyle(fontSize: 12.5, color: Colors.white70)),
-              ],
-            ]),
-          ),
-          IconButton(
-            tooltip: 'Copy number',
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: number));
-              toast(context, 'GCash number copied');
-            },
-            icon: const Icon(Icons.copy_rounded, size: 20, color: Colors.white),
-          ),
-        ]),
-      ),
-      // Optional QR: add assets/gcash_qr.png to your project to show it here.
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Image.asset('assets/gcash_qr.png',
-              width: 170,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+      if (hasQr) _GcashQr(version: s.gcashQrVersion!, name: s.gcashName),
+      if (hasQr && number != null) const SizedBox(height: 12),
+      if (number != null)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+          decoration: BoxDecoration(
+              color: AppColors.green,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: AppShadow.soft),
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(hasQr ? 'OR SEND TO THIS NUMBER' : 'GCASH NUMBER',
+                        style: overline(color: Colors.white60)),
+                    const SizedBox(height: 4),
+                    Text(number, style: mono(20, color: Colors.white)),
+                    if (s.gcashName != null) ...[
+                      const SizedBox(height: 2),
+                      Text(s.gcashName!,
+                          style: const TextStyle(
+                              fontSize: 12.5, color: Colors.white70)),
+                    ],
+                  ]),
+            ),
+            IconButton(
+              tooltip: 'Copy number',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: number));
+                toast(context, 'GCash number copied');
+              },
+              icon:
+                  const Icon(Icons.copy_rounded, size: 20, color: Colors.white),
+            ),
+          ]),
         ),
-      ),
     ]);
   }
 
@@ -207,7 +207,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       const SizedBox(height: 16),
                       _Step(
                         n: 1,
-                        title: 'Send exactly ${peso(rate.price)}',
+                        title:
+                            'Scan the QR or send exactly ${peso(rate.price)}',
                         child: Column(children: [
                           FutureBuilder<AppSettings>(
                             future: _settings,
@@ -400,5 +401,98 @@ class _Step extends StatelessWidget {
             ),
           ),
         ]),
+      );
+}
+
+/// The owner's GCash QR code. Tap it to see it bigger (easier to scan from
+/// another phone).
+class _GcashQr extends StatefulWidget {
+  final String version;
+  final String? name;
+  const _GcashQr({required this.version, this.name});
+  @override
+  State<_GcashQr> createState() => _GcashQrState();
+}
+
+class _GcashQrState extends State<_GcashQr> {
+  late Future<Uint8List> _img = ApiService.instance.gcashQr(widget.version);
+
+  void _retry() =>
+      setState(() => _img = ApiService.instance.gcashQr(widget.version));
+
+  void _enlarge(Uint8List bytes) => showDialog<void>(
+        context: context,
+        builder: (c) => Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.all(16),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                Expanded(child: Text('GCash QR', style: serif(20))),
+                IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(c),
+                    icon: const Icon(Icons.close_rounded)),
+              ]),
+              Flexible(
+                child: InteractiveViewer(
+                  maxScale: 4,
+                  child: Image.memory(bytes, fit: BoxFit.contain),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text('Pinch to zoom',
+                  style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+            ]),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.line)),
+        child: FutureBuilder<Uint8List>(
+          future: _img,
+          builder: (_, s) {
+            if (s.hasData) {
+              return Column(children: [
+                GestureDetector(
+                  onTap: () => _enlarge(s.data!),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
+                    child: Image.memory(s.data!, fit: BoxFit.contain),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (widget.name != null)
+                  Text(widget.name!,
+                      style: const TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w600)),
+                const Text('Scan with GCash · tap to enlarge',
+                    style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+              ]);
+            }
+            if (s.hasError) {
+              return Column(children: [
+                Text('${s.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12.5)),
+                TextButton(onPressed: _retry, child: const Text('Try again')),
+              ]);
+            }
+            return const SizedBox(
+                height: 180,
+                child: Center(
+                    child: CircularProgressIndicator(color: AppColors.green)));
+          },
+        ),
       );
 }
