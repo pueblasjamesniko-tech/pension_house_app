@@ -3,6 +3,7 @@ import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../widgets/auth_scaffold.dart';
 import '../widgets/common.dart';
+import 'forgot_password_screen.dart';
 import 'home_shell.dart';
 import 'register_screen.dart';
 
@@ -41,6 +42,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _forgotPassword() => Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) =>
+              ForgotPasswordScreen(initialEmail: _email.text.trim())));
+
   @override
   Widget build(BuildContext context) => AuthScaffold(
         title: 'Sign in',
@@ -77,7 +84,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 validator: (v) =>
                     (v ?? '').isEmpty ? 'Enter your password' : null,
               ),
-              const SizedBox(height: 22),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _busy ? null : _forgotPassword,
+                  child: const Text('Forgot password?'),
+                ),
+              ),
+              const SizedBox(height: 10),
               PrimaryButton('Sign in', loading: _busy, onPressed: _submit),
               const SizedBox(height: 14),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [

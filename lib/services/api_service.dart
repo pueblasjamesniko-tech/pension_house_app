@@ -25,6 +25,7 @@ class ApiException implements Exception {
 /// Every call to the PensionHouse.API lives here.
 ///
 ///  AUTH      GET auth/id-types · POST auth/register (multipart) · POST auth/login
+///            POST guest-auth/forgot-password · POST guest-auth/reset-password
 ///  ROOMS     GET rooms · GET rooms/available?checkIn=&hours=
 ///  BOOKINGS  POST bookings · GET bookings/mine · GET bookings/{id}
 ///            PATCH bookings/{id}/cancel
@@ -140,6 +141,28 @@ class ApiService {
     await _execute(req, auth: false, timeout: const Duration(seconds: 60));
     await login(email, password);
   }
+
+  /// Forgot password, step 1: the API emails a 6-digit code.
+  /// It answers the same for every email (so nobody can find out which emails
+  /// have an account). Returns how many seconds to wait before asking again.
+  Future<int> forgotPassword(String email) async {
+    final d = await _send('POST', 'guest-auth/forgot-password',
+        body: {'email': email.trim()}, auth: false);
+    if (d is Map && d['resendInSeconds'] is num) {
+      return (d['resendInSeconds'] as num).toInt();
+    }
+    return 60;
+  }
+
+  /// Forgot password, step 2: the emailed code + the new password.
+  Future<void> resetPassword(String email, String otp, String newPassword) =>
+      _send('POST', 'guest-auth/reset-password',
+          body: {
+            'email': email.trim(),
+            'otp': otp.trim(),
+            'newPassword': newPassword,
+          },
+          auth: false);
 
   Future<void> logout() async {
     _token = null;
@@ -364,6 +387,8 @@ class ApiService {
         return 'That photo is too large. Please use a smaller one.';
       case 415:
         return 'The server could not read that request. Please update the app.';
+      case 429:
+        return 'Too many tries. Please wait a little and try again.';
       case 500:
         return 'Something went wrong on the server. Please try again.';
       default:

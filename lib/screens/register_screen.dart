@@ -351,14 +351,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
               AppField(
                 controller: _pw,
                 label: 'Password',
-                hint: 'At least 6 characters',
+                hint: '8 to 32 characters',
                 icon: Icons.lock_outline,
                 password: true,
-                maxLength: 100,
+                maxLength: 32,
                 action: TextInputAction.next,
                 autofill: const [AutofillHints.newPassword],
-                validator: (v) =>
-                    (v ?? '').length < 6 ? 'Use at least 6 characters' : null,
+                validator: (v) {
+                  final p = v ?? '';
+                  if (p.length < 8) return 'Use at least 8 characters';
+                  if (p.length > 32) return 'Use at most 32 characters';
+                  return null;
+                },
               ),
               const SizedBox(height: 14),
               AppField(
