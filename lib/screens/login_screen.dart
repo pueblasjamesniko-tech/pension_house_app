@@ -6,6 +6,7 @@ import '../widgets/common.dart';
 import 'forgot_password_screen.dart';
 import 'home_shell.dart';
 import 'register_screen.dart';
+import 'verify_email_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,7 +37,18 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushAndRemoveUntil(context,
           MaterialPageRoute(builder: (_) => const HomeShell()), (_) => false);
     } on ApiException catch (e) {
-      if (mounted) toast(context, e.message, error: true);
+      if (!mounted) return;
+      if (e.code == 'EMAIL_NOT_VERIFIED') {
+        // Right password, but the email was never verified: the API just sent a new code.
+        toast(context, e.message);
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => VerifyEmailScreen(
+                    email: _email.text.trim(), password: _pw.text)));
+      } else {
+        toast(context, e.message, error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

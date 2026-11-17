@@ -6,7 +6,7 @@ enum BookingTone { waiting, good, active, bad, neutral }
 class Booking {
   final int id, roomId, rateId;
   final String bookingCode, roomNo, roomTitle, rateLabel, status;
-  final String? paymentMethod, paymentStatus, referenceCode;
+  final String? paymentMethod, paymentStatus, referenceCode, rejectReason;
   final DateTime checkIn, checkOut;
   final double totalAmount;
 
@@ -25,6 +25,7 @@ class Booking {
     this.paymentMethod,
     this.paymentStatus,
     this.referenceCode,
+    this.rejectReason,
   });
 
   factory Booking.fromJson(Map<String, dynamic> j) => Booking(
@@ -42,6 +43,7 @@ class Booking {
         paymentMethod: asStrOrNull(j['paymentMethod']),
         paymentStatus: asStrOrNull(j['paymentStatus'])?.toUpperCase(),
         referenceCode: asStrOrNull(j['referenceCode']),
+        rejectReason: asStrOrNull(j['rejectReason']),
       );
 
   // ---- status helpers (API statuses: CHECKED_IN, COMPLETED, CANCELLED, else = reserved) ----
@@ -57,20 +59,22 @@ class Booking {
 
   int get hours => checkOut.difference(checkIn).inHours;
 
+  // A rejected payment also cancels the booking, so it is checked first:
+  // the guest should see "Payment rejected" and the reason, not just "Cancelled".
   String get statusLabel {
+    if (paymentRejected) return 'Payment rejected';
     if (cancelled) return 'Cancelled';
     if (completed) return 'Completed';
     if (checkedIn) return 'Checked in';
-    if (paymentRejected) return 'Payment rejected';
     if (paymentApproved) return 'Confirmed';
     return 'Awaiting payment check';
   }
 
   BookingTone get tone {
+    if (paymentRejected) return BookingTone.bad;
     if (cancelled) return BookingTone.neutral;
     if (completed) return BookingTone.neutral;
     if (checkedIn) return BookingTone.active;
-    if (paymentRejected) return BookingTone.bad;
     if (paymentApproved) return BookingTone.good;
     return BookingTone.waiting;
   }
@@ -86,14 +90,17 @@ class Booking {
     }
   }
 
-  /// Short line used in the "Updates" list.
+  /// Short line used in the booking card and the "Updates" list.
   String get statusMessage {
+    if (paymentRejected) {
+      final why = (rejectReason ?? '').trim();
+      return why.isEmpty
+          ? 'We could not verify your GCash payment. Please contact the front desk.'
+          : 'Your payment was rejected: $why';
+    }
     if (cancelled) return 'This booking was cancelled.';
     if (completed) return 'Your stay is complete. Thanks for staying with us!';
     if (checkedIn) return 'You are checked in. Enjoy your stay!';
-    if (paymentRejected) {
-      return 'We could not verify your GCash payment. Please contact the front desk.';
-    }
     if (paymentApproved) return 'Payment confirmed. See you soon!';
     return 'Waiting for staff to verify your GCash payment.';
   }

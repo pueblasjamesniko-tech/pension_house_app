@@ -17,7 +17,8 @@ import 'saved_rooms.dart';
 class ApiException implements Exception {
   final String message;
   final int? status;
-  ApiException(this.message, [this.status]);
+  final String? code; // e.g. EMAIL_NOT_VERIFIED
+  ApiException(this.message, [this.status, this.code]);
   @override
   String toString() => message;
 }
@@ -118,7 +119,7 @@ class ApiService {
 
   /// The API's register is multipart/form-data and REQUIRES an ID type and a
   /// JPG/PNG photo of the ID. It does not return a token, so we sign in after.
-  Future<void> register({
+  Future<int> register({
     required String fullName,
     required String email,
     required String password,
@@ -141,8 +142,28 @@ class ApiService {
         http.MultipartFile.fromBytes('IdImage', idImage, filename: idFileName));
 
     // Uploading a photo can take longer than a normal request.
-    await _execute(req, auth: false, timeout: const Duration(seconds: 60));
-    await login(email, password);
+    final d =
+        await _execute(req, auth: false, timeout: const Duration(seconds: 60));
+    // No sign-in here: the guest must verify their email first.
+    if (d is Map && d['resendInSeconds'] is num) {
+      return (d['resendInSeconds'] as num).toInt();
+    }
+    return 60;
+  }
+
+  /// Email verification: the 6-digit code from the email.
+  Future<void> verifyEmail(String email, String otp) =>
+      _send('POST', 'guest-auth/verify-email',
+          body: {'email': email.trim(), 'otp': otp.trim()}, auth: false);
+
+  /// Sends a new verification code. Returns seconds to wait before asking again.
+  Future<int> resendVerification(String email) async {
+    final d = await _send('POST', 'guest-auth/resend-verification',
+        body: {'email': email.trim()}, auth: false);
+    if (d is Map && d['resendInSeconds'] is num) {
+      return (d['resendInSeconds'] as num).toInt();
+    }
+    return 60;
   }
 
   /// Forgot password, step 1: the API emails a 6-digit code.
@@ -396,7 +417,11 @@ class ApiService {
     }
 
     if (res.statusCode >= 300) {
-      throw ApiException(_errorMessage(data, res.statusCode), res.statusCode);
+      final code = (data is Map && '${data['code'] ?? ''}'.isNotEmpty)
+          ? '${data['code']}'
+          : null;
+      throw ApiException(
+          _errorMessage(data, res.statusCode), res.statusCode, code);
     }
     return data;
   }

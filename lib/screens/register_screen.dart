@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../widgets/auth_scaffold.dart';
 import '../widgets/common.dart';
+import 'verify_email_screen.dart';
 import 'home_shell.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -133,8 +134,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     FocusScope.of(context).unfocus();
     setState(() => _busy = true);
     try {
-      // Registers (multipart with the ID photo), then signs in automatically.
-      await ApiService.instance.register(
+      // Creates the account (multipart with the ID photo). The API emails a code.
+      final wait = await ApiService.instance.register(
         fullName: _name.text,
         email: _email.text,
         password: _pw.text,
@@ -144,8 +145,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         idFileName: _idName,
       );
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(context,
-          MaterialPageRoute(builder: (_) => const HomeShell()), (_) => false);
+      toast(context, 'We sent a 6-digit code to ${_email.text.trim()}.');
+      Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (_) => VerifyEmailScreen(
+                  email: _email.text.trim(),
+                  password: _pw.text,
+                  startWait: wait)));
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message, error: true);
     } finally {
